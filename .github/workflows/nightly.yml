@@ -1,0 +1,276 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC = midnight CDT
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  nightly:
+    name: nightly
+    runs-on: macos-15
+    steps:
+
+      # ── 1. Checkout ──────────────────────────────────────────────
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # ── 2. Configure git ─────────────────────────────────────────
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── 3. Sync upstream main ────────────────────────────────────
+      - name: Sync upstream main
+        run: |
+          git remote add upstream https://github.com/nikitabobko/AeroSpace.git || true
+          git fetch upstream main
+          git checkout main
+          git merge upstream/main --no-edit
+          git push origin main
+
+      # ── 4. Read tracking config ──────────────────────────────────
+      - name: Read tracking config
+        id: tracking
+        run: |
+          config=$(cat pr-tracking.json)
+          echo "config<<TRACKING_EOF" >> "$GITHUB_OUTPUT"
+          echo "$config" >> "$GITHUB_OUTPUT"
+          echo "TRACKING_EOF" >> "$GITHUB_OUTPUT"
+
+      # ── 5. Refresh tracked PR branches ───────────────────────────
+      - name: Refresh tracked PR branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACKING_CONFIG: ${{ steps.tracking.outputs.config }}
+        run: |
+          set -euo pipefail
+
+          while read -r number branch upstream_ref upstream_owner; do
+            echo "::group::PR #${number} (${branch})"
+
+            state=$(gh pr view "$number" --repo nikitabobko/AeroSpace --json state --jq '.state')
+            echo "State: $state"
+
+            if [ "$state" = "MERGED" ]; then
+              # Check if an issue already exists
+              existing=$(gh issue list --repo "$GITHUB_REPOSITORY" \
+                --search "PR #${number} merged upstream" --json number --jq '.[0].number // empty')
+              if [ -z "$existing" ]; then
+                issue_body="Upstream PR nikitabobko/AeroSpace#${number} has been merged into main."$'\n\n'
+                issue_body+="**Action required:**"$'\n'
+                issue_body+="1. Remove the entry for PR #${number} from \`pr-tracking.json\`"$'\n'
+                issue_body+="2. Delete the \`${branch}\` branch from this fork"$'\n'
+                issue_body+="3. The next nightly build will pick up the change via upstream sync"
+                gh issue create --repo "$GITHUB_REPOSITORY" \
+                  --title "PR #${number} merged upstream — remove from tracking" \
+                  --body "$issue_body"
+                echo "Opened cleanup issue for merged PR #${number}"
+              else
+                echo "Issue #${existing} already exists for merged PR #${number}"
+              fi
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [ "$state" = "OPEN" ]; then
+              remote_url="https://github.com/${upstream_owner}/AeroSpace.git"
+              git remote add "$upstream_owner" "$remote_url" 2>/dev/null || true
+              git fetch "$upstream_owner" "$upstream_ref"
+              git push origin "${upstream_owner}/${upstream_ref}:refs/heads/${branch}" --force
+              echo "Updated ${branch} from ${upstream_owner}/${upstream_ref}"
+            else
+              # CLOSED (not merged) — just make sure we have it from origin
+              git fetch origin "$branch" || true
+              echo "PR #${number} is closed (not merged), keeping existing branch"
+            fi
+
+            echo "::endgroup::"
+          done < <(echo "$TRACKING_CONFIG" | jq -r '.tracked_prs[] | "\(.number) \(.branch) \(.upstream_ref) \(.upstream_owner)"')
+
+      # ── 6. Assemble nightly branch ──────────────────────────────
+      - name: Assemble nightly branch
+        id: assemble
+        env:
+          TRACKING_CONFIG: ${{ steps.tracking.outputs.config }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          git checkout -B nightly main
+
+          merge_failed=0
+          while read -r number branch; do
+            # Re-check state to skip MERGED PRs
+            state=$(gh pr view "$number" --repo nikitabobko/AeroSpace --json state --jq '.state') || state="UNKNOWN"
+            if [ "$state" = "MERGED" ]; then
+              echo "Skipping merged PR #${number}"
+              continue
+            fi
+
+            echo "Merging origin/${branch} (PR #${number})..."
+            if ! git merge "origin/${branch}" --no-edit; then
+              echo "::error::Merge conflict with PR #${number} (${branch})"
+              git merge --abort
+              merge_failed=1
+              break
+            fi
+          done < <(echo "$TRACKING_CONFIG" | jq -r '.tracked_prs[] | "\(.number) \(.branch)"')
+
+          if [ "$merge_failed" -eq 1 ]; then
+            exit 1
+          fi
+
+          git push origin nightly --force
+
+          upstream_sha=$(git rev-parse upstream/main)
+          upstream_short=$(git rev-parse --short upstream/main)
+          build_date=$(date -u +%Y-%m-%d)
+
+          echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
+          echo "upstream_short=${upstream_short}" >> "$GITHUB_OUTPUT"
+          echo "build_date=${build_date}" >> "$GITHUB_OUTPUT"
+
+      # ── 7. Generate release notes ───────────────────────────────
+      - name: Generate release notes
+        id: notes
+        env:
+          TRACKING_CONFIG: ${{ steps.tracking.outputs.config }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          build_date="${{ steps.assemble.outputs.build_date }}"
+          upstream_short="${{ steps.assemble.outputs.upstream_short }}"
+
+          body="Built: ${build_date}"$'\n'
+          body+="Upstream: nikitabobko/AeroSpace@${upstream_short}"$'\n'
+          body+=$'\n'
+          body+="Includes:"$'\n'
+
+          while read -r number title; do
+            body+="- PR #${number} — ${title}"$'\n'
+          done < <(echo "$TRACKING_CONFIG" | jq -r '.tracked_prs[] | "\(.number)"' | while read -r num; do
+            title=$(gh pr view "$num" --repo nikitabobko/AeroSpace --json title --jq '.title')
+            echo "${num} ${title}"
+          done)
+
+          echo "body<<NOTES_EOF" >> "$GITHUB_OUTPUT"
+          echo "$body" >> "$GITHUB_OUTPUT"
+          echo "NOTES_EOF" >> "$GITHUB_OUTPUT"
+
+      # ── 8. Setup build tools ─────────────────────────────────────
+      - name: Setup build tools
+        run: |
+          ./.github/gh-actions-runner-xcode-select.sh
+          brew install bash fish xcbeautify swiftly
+          swiftly init --skip-install --assume-yes --verbose && swiftly install
+
+      # ── 9. Build release ─────────────────────────────────────────
+      - name: Build release
+        run: ./build-release.sh --codesign-identity -
+
+      - name: cat xcodebuild log
+        if: ${{ always() }}
+        run: 'if test -f ./.release/xcodebuild.log; then cat ./.release/xcodebuild.log; fi'
+
+      # ── 10. Upload release ───────────────────────────────────────
+      - name: Upload release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BODY: ${{ steps.notes.outputs.body }}
+        run: |
+          set -euo pipefail
+
+          build_date="${{ steps.assemble.outputs.build_date }}"
+
+          cp .release/AeroSpace-v0.0.0-SNAPSHOT.zip ".release/AeroSpace-edge-${build_date}.zip"
+
+          # Delete existing nightly release and tag if present
+          gh release delete nightly --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+          git push origin :refs/tags/nightly 2>/dev/null || true
+
+          echo "$RELEASE_BODY" > /tmp/release-notes.md
+
+          gh release create nightly \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Nightly Build ${build_date}" \
+            --notes-file /tmp/release-notes.md \
+            --prerelease \
+            --target nightly \
+            ".release/AeroSpace-edge-${build_date}.zip"
+
+      # ── 11. Update Homebrew tap ──────────────────────────────────
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          build_date="${{ steps.assemble.outputs.build_date }}"
+          zip_file=".release/AeroSpace-edge-${build_date}.zip"
+          sha=$(shasum -a 256 "$zip_file" | awk '{print $1}')
+          asset_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/nightly/AeroSpace-edge-${build_date}.zip"
+          zip_root_dir="AeroSpace-v0.0.0-SNAPSHOT"
+
+          # Generate cask formula using envsubst-style sed replacements
+          # Write template with placeholder tokens (no shell expansion needed)
+          {
+            echo 'cask "aerospace-edge" do # Generated by nightly workflow'
+            echo '  version :latest'
+            echo "  sha256 \"${sha}\""
+            echo ''
+            echo "  url \"${asset_url}\""
+            echo '  name "AeroSpace"'
+            echo '  desc "AeroSpace is an i3-like tiling window manager for macOS (nightly edge build)"'
+            echo '  homepage "https://github.com/ericreeves/AeroSpace"'
+            echo '  conflicts_with cask: "aerospace"'
+            echo '  conflicts_with cask: "aerospace-dev"'
+            echo ''
+            echo '  depends_on macos: ">= :ventura" # macOS 13'
+            echo ''
+            echo '  postflight do'
+            echo "    system \"xattr -d com.apple.quarantine #{staged_path}/${zip_root_dir}/bin/aerospace\""
+            echo "    system \"xattr -d com.apple.quarantine #{appdir}/AeroSpace.app\""
+            echo '  end'
+            echo ''
+            echo "  app \"${zip_root_dir}/AeroSpace.app\""
+            echo "  binary \"${zip_root_dir}/bin/aerospace\""
+            echo ''
+            echo "  binary \"${zip_root_dir}/shell-completion/zsh/_aerospace\","
+            echo "      target: \"#{HOMEBREW_PREFIX}/share/zsh/site-functions/_aerospace\""
+            echo "  binary \"${zip_root_dir}/shell-completion/bash/aerospace\","
+            echo "      target: \"#{HOMEBREW_PREFIX}/etc/bash_completion.d/aerospace\""
+            echo "  binary \"${zip_root_dir}/shell-completion/fish/aerospace.fish\","
+            echo "      target: \"#{HOMEBREW_PREFIX}/share/fish/vendor_completions.d/aerospace.fish\""
+            echo ''
+            echo "  Dir[\"#{staged_path}/${zip_root_dir}/manpage/*\"].each { |man| manpage man }"
+            echo 'end'
+          } > /tmp/aerospace-edge.rb
+
+          echo "Generated cask:"
+          cat /tmp/aerospace-edge.rb
+
+          # Clone tap repo and push updated cask
+          tap_dir=$(mktemp -d)
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/ericreeves/homebrew-aerospace-edge.git" "$tap_dir"
+          mkdir -p "${tap_dir}/Casks"
+          cp /tmp/aerospace-edge.rb "${tap_dir}/Casks/aerospace-edge.rb"
+
+          cd "$tap_dir"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/aerospace-edge.rb
+          if git diff --cached --quiet; then
+            echo "No changes to cask formula"
+          else
+            git commit -m "Update aerospace-edge to nightly build ${build_date}"
+            git push
+            echo "Pushed updated cask formula"
+          fi
