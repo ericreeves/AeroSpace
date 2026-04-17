@@ -6,13 +6,7 @@
       "upstream_ref": "codex/tabs-layout",
       "upstream_owner": "vadika"
     },
-    {
-      "number": 1512,
-      "branch": "pr/1512-single-window-max-width",
-      "upstream_ref": "single-window-max-width",
-      "upstream_owner": "mybuddymichael"
-    },
-    {
+{
       "number": 2046,
       "branch": "pr/2046-window-saver",
       "upstream_ref": "feat/aerospace_window_saver",
