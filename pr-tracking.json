@@ -10,7 +10,7 @@
   "local_patches": [
     {
       "name": "container-id-format-field",
-      "branch": "local/container-id-format-field"
+      "branch": "container-id-format-field"
     }
   ]
 }
