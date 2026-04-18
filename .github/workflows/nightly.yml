@@ -251,7 +251,7 @@ jobs:
             echo '  name "AeroSpace"'
             echo '  desc "AeroSpace is an i3-like tiling window manager for macOS (nightly edge build)"'
             echo '  homepage "https://github.com/ericreeves/AeroSpace"'
-            echo '  conflicts_with cask: "aerospace", cask: "aerospace-dev"'
+            echo '  conflicts_with cask: ["aerospace", "aerospace-dev"]'
             echo ''
             echo '  depends_on macos: ">= :ventura" # macOS 13'
             echo ''
