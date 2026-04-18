@@ -1,12 +1,5 @@
 {
-  "tracked_prs": [
-    {
-      "number": 2046,
-      "branch": "pr/2046-window-saver",
-      "upstream_ref": "feat/aerospace_window_saver",
-      "upstream_owner": "michalliu"
-    }
-  ],
+  "tracked_prs": [],
   "local_patches": [
     {
       "name": "container-id-format-field",
