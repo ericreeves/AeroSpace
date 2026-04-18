@@ -6,5 +6,11 @@
       "upstream_ref": "feat/aerospace_window_saver",
       "upstream_owner": "michalliu"
     }
+  ],
+  "local_patches": [
+    {
+      "name": "container-id-format-field",
+      "branch": "local/container-id"
+    }
   ]
 }

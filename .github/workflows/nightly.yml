@@ -123,6 +123,19 @@ jobs:
             fi
           done < <(echo "$TRACKING_CONFIG" | jq -r '.tracked_prs[] | "\(.number) \(.branch)"')
 
+          # Merge local patches
+          if [ "$merge_failed" -eq 0 ] && echo "$TRACKING_CONFIG" | jq -e '.local_patches' > /dev/null 2>&1; then
+            while read -r name branch; do
+              echo "Merging local patch: ${name} (${branch})..."
+              if ! git merge "origin/${branch}" --no-edit; then
+                echo "::error::Merge conflict with local patch ${name} (${branch})"
+                git merge --abort
+                merge_failed=1
+                break
+              fi
+            done < <(echo "$TRACKING_CONFIG" | jq -r '.local_patches[] | "\(.name) \(.branch)"')
+          fi
+
           if [ "$merge_failed" -eq 1 ]; then
             exit 1
           fi
@@ -160,6 +173,14 @@ jobs:
             title=$(gh pr view "$num" --repo nikitabobko/AeroSpace --json title --jq '.title')
             echo "${num} ${title}"
           done)
+
+          # Add local patches section
+          if echo "$TRACKING_CONFIG" | jq -e '.local_patches | length > 0' > /dev/null 2>&1; then
+            body+=$'\n'"Local patches:"$'\n'
+            while read -r name; do
+              body+="- ${name}"$'\n'
+            done < <(echo "$TRACKING_CONFIG" | jq -r '.local_patches[].name')
+          fi
 
           echo "body<<NOTES_EOF" >> "$GITHUB_OUTPUT"
           echo "$body" >> "$GITHUB_OUTPUT"
