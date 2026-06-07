@@ -140,17 +140,16 @@ extension TilingContainer {
 
     @MainActor
     fileprivate func layoutAccordion(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
-        guard let mruIndex: Int = mostRecentChild?.ownIndex else { return }
+        let padding = CGFloat(config.accordionPadding)
         for (index, child) in children.enumerated() {
-            let padding = CGFloat(config.accordionPadding)
-            let (lPadding, rPadding): (CGFloat, CGFloat) = switch index {
-                case 0 where children.count == 1: (0, 0)
-                case 0:                           (0, padding)
-                case children.indices.last:       (padding, 0)
-                case mruIndex - 1:                (0, 2 * padding)
-                case mruIndex + 1:                (2 * padding, 0)
-                default:                          (padding, padding)
-            }
+            // local-patch/accordion-cascade: stagger every window's outer edges by
+            // its tree index so each window in the stack peeks out with a distinct
+            // sliver no matter which window is focused. Upstream keys the offsets
+            // off the focused window, which puts all windows on one side of it onto
+            // the same outer edge — with 3+ windows the unfocused ones overlap and
+            // can hide each other entirely.
+            let lPadding = CGFloat(index) * padding
+            let rPadding = CGFloat(children.count - 1 - index) * padding
             switch orientation {
                 case .h:
                     try await child.layoutRecursive(
