@@ -154,6 +154,9 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     modeConfigRootKey: Parser(\.modes, skipParsing(Config().modes)), // Parsed manually
 
     "gaps": Parser(\.gaps, parseGaps),
+    "single-window-aspect-ratio": Parser(\.singleWindowAspectRatio, parseSingleWindowAspectRatio),
+    "apply-aspect-to-accordion": Parser(\.applyAspectToAccordion, parseApplyAspectOrientation),
+    "single-window-aspect-ratio-exclude-monitors": Parser(\.singleWindowAspectRatioExcludeMonitors, parseSingleWindowAspectRatioExcludeMonitors),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
     "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
 
@@ -408,6 +411,27 @@ private func parseArrayOfStrings(_ raw: OrderedJson, _ backtrace: ConfigBacktrac
                 parseString(elem, backtrace + .index(index))
             }
         }
+}
+
+private func parseSingleWindowAspectRatio(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<AspectRatio?> {
+    parseString(raw, backtrace).flatMap { str in
+        let parts = str.split(whereSeparator: { $0 == ":" || $0 == " " }).compactMap { Double($0) }
+        guard parts.count == 2, parts[0] > 0, parts[1] > 0 else {
+            return .failure(.init(backtrace, "Expected format 'WIDTH:HEIGHT' (e.g. '16:9')"))
+        }
+        return .success(AspectRatio(width: CGFloat(parts[0]), height: CGFloat(parts[1])))
+    }
+}
+
+private func parseApplyAspectOrientation(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<ApplyAspectOrientation> {
+    parseString(raw, backtrace).flatMap {
+        ApplyAspectOrientation(rawValue: $0)
+            .toResult(.init(backtrace, "Expected 'vertical', 'horizontal', 'all', or 'none'"))
+    }
+}
+
+private func parseSingleWindowAspectRatioExcludeMonitors(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> [MonitorDescription] {
+    parseMonitorDescriptions(raw, backtrace, &c)
 }
 
 private func parseDefaultContainerOrientation(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<DefaultContainerOrientation> {
