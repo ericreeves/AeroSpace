@@ -1,12 +1,6 @@
 {
   "tracked_prs": [
     {
-      "number": 2093,
-      "branch": "pr/2093-single-window-aspect-ratio",
-      "upstream_ref": "single-window-aspect",
-      "upstream_owner": "enercif"
-    },
-    {
       "number": 2085,
       "branch": "pr/2085-ax-registration-throttle",
       "upstream_ref": "codex/ax-registration-retry-backoff",
@@ -21,6 +15,10 @@
     {
       "name": "accordion-cascade",
       "branch": "local-patch/accordion-cascade"
+    },
+    {
+      "name": "single-window-aspect-ratio",
+      "branch": "local-patch/single-window-aspect-ratio"
     }
   ]
 }
