@@ -165,8 +165,7 @@ extension FormatVar {
                     case .windowTitle: .success(.string(w.title.orDie("Title wasn't prefeched")))
                     case .windowLayout, .windowParentContainerLayout: toLayoutResult(w: w.window)
                     case .windowParentContainerId:
-                        w.window.parent.map { .success(.string("\(UInt(bitPattern: ObjectIdentifier($0)))")) }
-                            ?? .failure("NULL-PARENT")
+                        .success(.string(w.window.parent.map { "\(UInt(bitPattern: ObjectIdentifier($0)))" } ?? "NULL-PARENT"))
                     case .windowTreeIndex:
                         w.window.nodeWorkspace
                             .flatMap { ws in
