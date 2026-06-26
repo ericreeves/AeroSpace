@@ -12,8 +12,8 @@ import Foundation
             interceptTermination(SIGINT)
             interceptTermination(SIGKILL)
         }
-        try await bootstrapConfig()
-        _ = try await reloadConfig()
+        await bootstrapConfig_nonCancellable()
+        _ = await reloadConfig_nonCancellable()
 
         checkAccessibilityPermissions()
         startUnixSocketServer()
@@ -24,18 +24,18 @@ import Foundation
             .startup,
             // It's important for the first initialization to be non cancellable
             // to make sure that isStartup propagates to all places
-            cancellable: false,
+            assumeCancellable: false,
             layoutWorkspaces: false,
         )
         try await runLightSession(.startup, .forceRun) {
             smartLayoutAtStartup()
-            _ = try await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
+            _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
         }
     }
 }
 
-@MainActor private func bootstrapConfig() async throws {
-    let result = try await reloadConfig(forceConfigUrl: defaultConfigUrl)
+@MainActor private func bootstrapConfig_nonCancellable() async {
+    let result = await reloadConfig_nonCancellable(forceConfigUrl: defaultConfigUrl)
     let msg = """
         Can't load default config. Your installation is probably corrupted.
         Please don't modify \(defaultConfigUrl.description.singleQuoted)
@@ -55,9 +55,7 @@ private func smartLayoutAtStartup() {
     }
 }
 
-@TaskLocal
-var _isStartup: Bool? = false
-var isStartup: Bool { _isStartup ?? dieT("isStartup is not initialized") }
+var isStartup: Bool { refreshSessionEvent.orDie("refreshSessionEvent is not initialized").isStartup }
 
 struct ServerArgs: Sendable {
     var configLocation: String? = nil

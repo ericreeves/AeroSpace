@@ -74,7 +74,7 @@ func + (a: CGPoint, b: CGPoint) -> CGPoint {
     CGPoint(x: a.x + b.x, y: a.y + b.y)
 }
 
-extension CGPoint: ConvenienceCopyable {}
+extension CGPoint: ConvenienceMutable {}
 
 extension CGPoint {
     func distance(toOuterFrame rect: Rect) -> CGFloat {
@@ -100,6 +100,13 @@ extension CGPoint {
     var vectorLength: CGFloat { sqrt(x * x + y * y) }
 
     var monitorApproximation: Monitor { monitors.minByOrDie { distance(toOuterFrame: $0.rect) } }
+
+    var withYAxisFlipped: CGPoint {
+        consuming get {
+            self.y = mainMonitor.height - self.y
+            return self
+        }
+    }
 }
 
 extension CGFloat {
@@ -130,8 +137,13 @@ extension CGPoint: @retroactive Hashable { // todo migrate to self written Point
 #endif
 
 @inlinable
-func checkCancellation() throws(CancellationError) {
-    if Task.isCancelled {
+func checkCancellation(_ cm: CancellationMode = .cancellable) throws(CancellationError) {
+    if cm == .cancellable && Task.isCancelled {
         throw CancellationError()
     }
+}
+
+public enum CancellationMode: Equatable, Sendable {
+    case cancellable
+    case nonCancellable
 }

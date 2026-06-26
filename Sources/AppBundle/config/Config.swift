@@ -32,7 +32,7 @@ var defaultConfigUrl: URL {
 @MainActor var config: Config = defaultConfig // todo move to Ctx?
 @MainActor var configUrl: URL = defaultConfigUrl
 
-struct Config: ConvenienceCopyable {
+struct Config: ConvenienceMutable {
     var configVersion: ConfigVersion = ._1
     var _afterLoginCommand: [any Command] = []
     var afterStartupCommand: Shell<any Command> = .empty
@@ -50,6 +50,7 @@ struct Config: ConvenienceCopyable {
     var execOnWorkspaceChange: [String] = [] // todo deprecate
     var keyMapping = KeyMapping()
     var execConfig: ExecConfig = ExecConfig()
+    var focusFollowsMouse: FocusFollowsMouse = FocusFollowsMouse()
 
     var onFocusChanged: Shell<any Command> = .empty
     // var onFocusedWorkspaceChanged: [any Command] = []
@@ -60,6 +61,10 @@ struct Config: ConvenienceCopyable {
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []
     var onModeChanged: Shell<any Command> = .empty
+}
+
+struct FocusFollowsMouse: ConvenienceMutable {
+    var enabled: Bool = false
 }
 
 enum ConfigVersion: Int, Comparable, CaseIterable, Sendable, CustomStringConvertible {
