@@ -278,10 +278,11 @@ jobs:
             echo '  depends_on macos: :ventura # macOS 13+ (symbol form; string ">=" comparison deprecated in brew 5)'
             echo ''
             echo '  postflight do'
-            echo "    system \"xattr -d com.apple.quarantine #{staged_path}/${zip_root_dir}/bin/aerospace\""
-            echo "    system \"xattr -d com.apple.quarantine #{staged_path}/${zip_root_dir}/bin/aerospace-helper\""
-            echo "    system \"xattr -d com.apple.quarantine #{staged_path}/${zip_root_dir}/bin/aero-notify\""
-            echo "    system \"xattr -d com.apple.quarantine #{appdir}/AeroSpace.app\""
+            echo '    # Recursive: the app is ad-hoc signed, so a quarantine flag left on'
+            echo '    # any nested file (e.g. Contents/MacOS/AeroSpace) makes Gatekeeper'
+            echo '    # SIGKILL it on launch. -d (non-recursive) missed the inner binary.'
+            echo "    system_command \"/usr/bin/xattr\", args: [\"-dr\", \"com.apple.quarantine\", \"#{appdir}/AeroSpace.app\"], must_succeed: false"
+            echo "    system_command \"/usr/bin/xattr\", args: [\"-dr\", \"com.apple.quarantine\", \"#{staged_path}/${zip_root_dir}/bin\"], must_succeed: false"
             echo '  end'
             echo ''
             echo "  app \"${zip_root_dir}/AeroSpace.app\""
