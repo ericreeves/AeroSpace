@@ -320,3 +320,43 @@ jobs:
             git push
             echo "Pushed updated cask formula"
           fi
+
+      # ── 9. Alert on failure ──────────────────────────────────────
+      # Fires if ANY prior step failed. No-ops (never errors) when the
+      # DISCORD_WEBHOOK secret is unset, so the workflow stays portable.
+      # A silent 4-week failure (2026-07) is why this exists.
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -z "${DISCORD_WEBHOOK:-}" ]; then
+            echo "DISCORD_WEBHOOK secret not set — skipping alert"
+            exit 0
+          fi
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n \
+            --arg url "$run_url" \
+            --arg sha "${GITHUB_SHA:0:8}" \
+            --arg event "${GITHUB_EVENT_NAME}" \
+            --arg ref "${GITHUB_REF_NAME}" \
+            '{
+              username: "AeroSpace Edge",
+              embeds: [{
+                title: "🚨 nightly build failed",
+                url: $url,
+                color: 15548997,
+                description: "The AeroSpace edge nightly failed. Users stay on the last good build until it is fixed. Check the run logs.",
+                fields: [
+                  {name: "Trigger", value: $event, inline: true},
+                  {name: "Branch", value: $ref, inline: true},
+                  {name: "Commit", value: $sha, inline: true}
+                ],
+                footer: {text: "ericreeves/AeroSpace • nightly.yml"}
+              }]
+            }')
+          if curl -fsS -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK" >/dev/null; then
+            echo "Discord alert sent"
+          else
+            echo "::warning::Failed to POST Discord alert"
+          fi
