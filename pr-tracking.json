@@ -1,5 +1,12 @@
 {
-  "tracked_prs": [],
+  "tracked_prs": [
+    {
+      "number": 2174,
+      "branch": "pr/2174-native-fullscreen-restore",
+      "upstream_ref": "fix/native-fullscreen-restore",
+      "upstream_owner": "Damecek"
+    }
+  ],
   "local_patches": [
     {
       "name": "container-id-format-field",
