@@ -14,10 +14,6 @@
       "branch": "local-patch/single-window-aspect-ratio"
     },
     {
-      "name": "perf-app-registration-throttle",
-      "branch": "local-patch/perf-app-registration-throttle"
-    },
-    {
       "name": "aerospace-helper",
       "branch": "local-patch/aerospace-helper"
     }
