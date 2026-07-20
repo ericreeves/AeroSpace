@@ -23,6 +23,10 @@
     {
       "name": "aerospace-helper",
       "branch": "local-patch/aerospace-helper"
+    },
+    {
+      "name": "tree-persistence",
+      "branch": "local-patch/tree-persistence"
     }
   ]
 }
