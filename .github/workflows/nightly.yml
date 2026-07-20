@@ -264,6 +264,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          build_date="${{ steps.assemble.outputs.build_date }}"
           build_id="${{ steps.assemble.outputs.build_id }}"
           zip_file=".release/AeroSpace-edge-${build_id}.zip"
           sha=$(shasum -a 256 "$zip_file" | awk '{print $1}')
