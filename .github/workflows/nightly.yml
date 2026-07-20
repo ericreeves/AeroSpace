@@ -151,10 +151,17 @@ jobs:
           upstream_sha=$(git rev-parse upstream/main)
           upstream_short=$(git rev-parse --short upstream/main)
           build_date=$(date -u +%Y-%m-%d)
+          # Unique per-build id (date + assembled nightly short sha). Keeps the
+          # release asset name unique so two builds on the same calendar day
+          # can't collide — a date-only name left a stale asset behind the
+          # cask's fresh sha256 (2026-07-20), and also dodges GitHub's download
+          # CDN caching the old bytes at a reused URL.
+          build_id="${build_date}-$(git rev-parse --short HEAD)"
 
           echo "upstream_sha=${upstream_sha}" >> "$GITHUB_OUTPUT"
           echo "upstream_short=${upstream_short}" >> "$GITHUB_OUTPUT"
           echo "build_date=${build_date}" >> "$GITHUB_OUTPUT"
+          echo "build_id=${build_id}" >> "$GITHUB_OUTPUT"
 
       # ── 7. Generate release notes ───────────────────────────────
       - name: Generate release notes
@@ -232,8 +239,9 @@ jobs:
           set -euo pipefail
 
           build_date="${{ steps.assemble.outputs.build_date }}"
+          build_id="${{ steps.assemble.outputs.build_id }}"
 
-          cp .release/AeroSpace-v0.0.0-SNAPSHOT.zip ".release/AeroSpace-edge-${build_date}.zip"
+          cp .release/AeroSpace-v0.0.0-SNAPSHOT.zip ".release/AeroSpace-edge-${build_id}.zip"
 
           # Delete existing nightly release and tag if present
           gh release delete nightly --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
@@ -247,7 +255,7 @@ jobs:
             --notes-file /tmp/release-notes.md \
             --prerelease \
             --target nightly \
-            ".release/AeroSpace-edge-${build_date}.zip"
+            ".release/AeroSpace-edge-${build_id}.zip"
 
       # ── 11. Update Homebrew tap ──────────────────────────────────
       - name: Update Homebrew tap
@@ -256,10 +264,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          build_date="${{ steps.assemble.outputs.build_date }}"
-          zip_file=".release/AeroSpace-edge-${build_date}.zip"
+          build_id="${{ steps.assemble.outputs.build_id }}"
+          zip_file=".release/AeroSpace-edge-${build_id}.zip"
           sha=$(shasum -a 256 "$zip_file" | awk '{print $1}')
-          asset_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/nightly/AeroSpace-edge-${build_date}.zip"
+          asset_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/nightly/AeroSpace-edge-${build_id}.zip"
           zip_root_dir="AeroSpace-v0.0.0-SNAPSHOT"
 
           # Generate cask formula using envsubst-style sed replacements
@@ -355,7 +363,11 @@ jobs:
                 footer: {text: "ericreeves/AeroSpace • nightly.yml"}
               }]
             }')
-          if curl -fsS -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK" >/dev/null; then
+          # A User-Agent is required — Discord's Cloudflare edge 403s requests without one.
+          if curl -fsS -X POST "$DISCORD_WEBHOOK" \
+               -H "Content-Type: application/json" \
+               -H "User-Agent: aerospace-edge-nightly/1.0 (github-actions)" \
+               -d "$payload" >/dev/null; then
             echo "Discord alert sent"
           else
             echo "::warning::Failed to POST Discord alert"
