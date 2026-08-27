@@ -13,7 +13,7 @@ extension Workspace {
         let height = rect.height - 1
         var virtual = rect
         let aspectRatioExcluded = config.singleWindowAspectRatioExcludeMonitors.contains {
-            $0.resolveMonitor(sortedMonitors: sortedMonitors)?.monitorAppKitNsScreenScreensId == workspaceMonitor.monitorAppKitNsScreenScreensId
+            $0.resolveMonitor(sortedMonitors: sortedMonitorInfos)?.monitorAppKitNsScreenScreensId == workspaceMonitor.monitorAppKitNsScreenScreensId
         }
         if let ratio = config.singleWindowAspectRatio, !aspectRatioExcluded, shouldApplyAspectRatio(to: rootTilingContainer) {
             let constrainedWidth = height * ratio.width / ratio.height
