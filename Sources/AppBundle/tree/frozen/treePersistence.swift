@@ -49,7 +49,7 @@ private let maxSnapshotAgeSeconds: TimeInterval = 5 * 60
     let allWindowIds = allWs.flatMap { collectAllWindowIdsRecursive($0) }.toSet()
     let world = FrozenWorld(
         workspaces: allWs.map { FrozenWorkspace($0) },
-        monitors: monitors.map(FrozenMonitor.init),
+        monitors: monitorInfos.map(FrozenMonitor.init),
         windowIds: allWindowIds,
     )
     let payload = PersistedTree(
