@@ -9,7 +9,7 @@ import Common
 /// so that once the screen is unlocked, AeroSpace could restore windows to where they were
 @MainActor private var closedWindowsCache = FrozenWorld(workspaces: [], monitors: [], windowIds: [])
 
-struct FrozenMonitor: Sendable {
+struct FrozenMonitor: Sendable, Codable {
     let topLeftCorner: CGPoint
     let visibleWorkspace: String
 
@@ -19,7 +19,7 @@ struct FrozenMonitor: Sendable {
     }
 }
 
-struct FrozenWorkspace: Sendable {
+struct FrozenWorkspace: Sendable, Codable {
     let name: String
     let monitor: FrozenMonitor // todo drop this property, once monitor to workspace assignment migrates to TreeNode
     let rootTilingNode: FrozenContainer
@@ -123,4 +123,17 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
 // and with mouse manipulations
 @MainActor func resetClosedWindowsCache() {
     closedWindowsCache = FrozenWorld(workspaces: [], monitors: [], windowIds: [])
+}
+
+/// Overwrite the closed-windows cache with an externally supplied `FrozenWorld`.
+/// Used by tree-persistence (local-patch) to pre-load a snapshot at startup so that the
+/// existing per-window `restoreClosedWindowsCacheIfNeeded` hook re-homes windows as they register.
+/// The cache var is `private` to this file, hence this setter.
+@MainActor func setClosedWindowsCache(_ world: FrozenWorld) {
+    closedWindowsCache = world
+}
+
+/// Read-only accessor for the current closed-windows cache (used to build persistence snapshots).
+@MainActor func getClosedWindowsCache() -> FrozenWorld {
+    closedWindowsCache
 }

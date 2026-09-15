@@ -21,6 +21,10 @@ import Foundation
         GlobalObserver.initObserver()
         Workspace.garbageCollectUnusedWorkspaces() // init workspaces
         _ = Workspace.all.first?.focusWorkspace()
+        // tree-persistence (local-patch): pre-load a persisted snapshot into closedWindowsCache
+        // BEFORE the first refresh registers windows, so the existing per-window
+        // restoreClosedWindowsCacheIfNeeded hook re-homes each window as it registers.
+        loadPersistedTreeIfPending()
         await runHeavyCompleteRefreshSession(
             .startup,
             // It's important for the first initialization to be non cancellable
@@ -29,7 +33,14 @@ import Foundation
             layoutWorkspaces: false,
         )
         try await runLightSession(.startup, .forceRun) {
-            smartLayoutAtStartup()
+            // tree-persistence (local-patch): when a snapshot was restored this boot, skip
+            // smartLayoutAtStartup (it would clobber the restored root layout of the focused
+            // workspace) and instead re-apply the persisted focus.
+            if pendingTreeRestore != nil {
+                applyPendingTreeRestoreFocus()
+            } else {
+                smartLayoutAtStartup()
+            }
             _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
         }
     }
