@@ -1,0 +1,40 @@
+= aerospace-persist-tree(1)
+include::util/man-attributes.adoc[]
+:manname: aerospace-persist-tree
+// tag::purpose[]
+:manpurpose: Snapshot the window tree to disk and arm restore for the next startup
+// end::purpose[]
+
+// =========================================================== Synopsis
+== Synopsis
+[verse]
+// tag::synopsis[]
+aerospace persist-tree [-h|--help]
+
+// end::synopsis[]
+
+// =========================================================== Description
+== Description
+
+// tag::body[]
+{manpurpose}
+
+The command serializes the full intra-workspace window tree (nested tiling splits, accordion
+containers, orientation, per-node size weights, floating and native-fullscreen windows,
+per-workspace monitor assignment, and focus) to
+`~/.local/state/aerospace/tree-snapshot.json` and writes a `tree-restore.pending` sentinel
+next to it.
+
+On the next AeroSpace startup, if the sentinel is present and the snapshot is fresh, the tree
+is restored and the sentinel is deleted. This is intended to be run right before an intentional
+restart so a hand-arranged desktop survives the restart.
+
+// =========================================================== Options
+include::./util/conditional-options-header.adoc[]
+
+-h, --help:: Print help
+
+// end::body[]
+
+// =========================================================== Footer
+include::util/man-footer.adoc[]
