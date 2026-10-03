@@ -1,0 +1,38 @@
+[package]
+name = "aerospace-helper"
+version = "0.9.0"
+edition = "2024"
+
+[[bin]]
+name = "aerospace-helper"
+path = "src/main.rs"
+
+[[bin]]
+name = "aero-notify"
+path = "src/notify.rs"
+
+[dependencies]
+objc2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2-app-kit = { version = "0.3", features = [
+  "NSRunningApplication",
+  "NSWorkspace",
+] }
+objc2-foundation = { version = "0.3", features = [
+  "NSDate",
+  "NSNotification",
+  "NSRunLoop",
+  "NSString",
+  "NSObjCRuntime",
+  "NSThread",
+] }
+block2 = "0.6"
+libc = "0.2"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = { version = "7", default-features = false, features = ["macos_kqueue"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
