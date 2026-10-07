@@ -203,7 +203,9 @@ jobs:
       - name: Setup build tools
         run: |
           ./.github/gh-actions-runner-xcode-select.sh
-          brew install bash fish xcbeautify swiftly
+          # brew update first, as upstream build.yml does: the runner image ships a
+          # stale swiftly (1.1.3) that resolves Swift 6.4 to a 404 pkg URL.
+          brew update && brew install bash fish xcbeautify swiftly
           swiftly init --skip-install --assume-yes --verbose && swiftly install
 
       # ── 9. Build release ─────────────────────────────────────────
