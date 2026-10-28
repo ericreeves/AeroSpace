@@ -160,6 +160,16 @@ extension FormatVar {
                     case .windowIsFullscreen: .success(.bool(w.window.isFullscreen))
                     case .windowTitle: .success(.string(w.title.orDie("Title wasn't prefetched")))
                     case .windowLayout, .windowParentContainerLayout: toLayoutResult(w: w.window)
+                    case .windowParentContainerId:
+                        .success(.string(w.window.parent.map { "\(UInt(bitPattern: ObjectIdentifier($0)))" } ?? "NULL-PARENT"))
+                    case .windowTreeIndex:
+                        w.window.nodeWorkspace
+                            .flatMap { ws in
+                                ws.rootTilingContainer.allLeafWindowsRecursive
+                                    .firstIndex(where: { $0 == w.window })
+                                    .map { .success(.int(Int32($0))) }
+                            }
+                            ?? .success(.int(-1))
                 }
             case (.workspace(let w), .workspace(let f)):
                 return switch f {
