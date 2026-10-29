@@ -19,7 +19,7 @@ struct MoveCommand: Command {
             return .fail
         }
         switch currentWindow.windowParentCases {
-            case .unbound: return .fail
+            case nil: return .fail
             case .tilingContainer(let parent):
                 guard let indexOfCurrent = currentWindow.ownIndex else { return .fail(io.err(bugPrompt())) }
                 let indexOfSiblingTarget = indexOfCurrent + direction.focusOffset
@@ -63,14 +63,14 @@ struct MoveCommand: Command {
                     return .succ
             }
         case .allMonitorsOuterFrame:
-            guard let (monitors, index) = window.nodeMonitor?.findRelativeMonitor(inDirection: direction) else {
+            guard let (monitors, index) = window.nodeMonitorInfo?.findRelativeMonitor(inDirection: direction) else {
                 return .fail(io.err("Should never happen. Can't find the current monitor"))
             }
 
             if monitors.indices.contains(index) {
                 let moveNodeToMonitorArgs = MoveNodeToMonitorCmdArgs(target: .direction(direction))
                     .copy(\.windowId, window.windowId)
-                    .copy(\.focusFollowsWindow, focus.windowOrNil == window)
+                    .copy(\.focusFollowsWindow, globalFocus.windowOrNil == window)
 
                 return MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
             } else {
@@ -111,6 +111,8 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
             // Impossible: tilingContainer's parent can only be a workspace or tilingContainer
             case .floatingWindowsContainer,
                  .macosMinimizedWindowsContainer,
+                 .monitor,
+                 .workspacesContainer,
                  .macosFullscreenWindowsContainer,
                  .macosHiddenAppsWindowsContainer,
                  .macosPopupWindowsContainer: true

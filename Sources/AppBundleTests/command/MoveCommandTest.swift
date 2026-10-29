@@ -299,7 +299,7 @@ final class MoveCommandTest: XCTestCase {
                 .window(2),
             ]),
         )
-        assertEquals(focus.windowOrNil?.windowId, 2)
+        assertEquals(globalFocus.windowOrNil?.windowId, 2)
     }
 
     func testMoveOutWithNormalization_left() async {
@@ -318,7 +318,7 @@ final class MoveCommandTest: XCTestCase {
                 .window(2),
             ]),
         )
-        assertEquals(focus.windowOrNil?.windowId, 1)
+        assertEquals(globalFocus.windowOrNil?.windowId, 1)
     }
 }
 
@@ -331,6 +331,8 @@ extension TreeNode {
             case .macosMinimizedWindowsContainer: .macosMinimized
             case .macosFullscreenWindowsContainer: .macosFullscreen
             case .macosHiddenAppsWindowsContainer: .macosHiddeAppWindow
+            case .monitor: .monitor
+            case .workspacesContainer: .workspacesContainer
             case .macosPopupWindowsContainer: .macosPopupWindowsContainer
             case .tilingContainer(let container):
                 switch container.layout {
@@ -359,4 +361,8 @@ enum LayoutDescription: Equatable {
     case macosMinimized
     case macosHiddeAppWindow
     case macosFullscreen
+
+    // todo think about it
+    case workspacesContainer
+    case monitor
 }

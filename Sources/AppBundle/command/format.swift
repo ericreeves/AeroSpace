@@ -140,13 +140,13 @@ extension FormatVar {
             case (.window(let w), .workspace):
                 return w.window.nodeWorkspace.flatMap(AeroObj.workspace).map(expandFormatVar) ?? .success(.string("NULL-WORKSPACE"))
             case (.window(let w), .monitor):
-                return w.window.nodeMonitor.flatMap(AeroObj.monitor).map(expandFormatVar) ?? .success(.string("NULL-MONITOR"))
+                return w.window.nodeMonitorInfo.flatMap(AeroObj.monitor).map(expandFormatVar) ?? .success(.string("NULL-MONITOR"))
             case (.window(let w), .app):
                 return expandFormatVar(obj: .app(w.window.app))
             case (.window(_), .window): break
 
             case (.workspace(let ws), .monitor):
-                return expandFormatVar(obj: AeroObj.monitor(ws.workspaceMonitor))
+                return expandFormatVar(obj: AeroObj.monitor(ws.workspaceMonitorInfo))
             case (.workspace, _): break
 
             case (.app(_), _): break
@@ -165,7 +165,7 @@ extension FormatVar {
                 return switch f {
                     case .workspaceName: .success(.string(w.name))
                     case .workspaceVisible: .success(.bool(w.isVisible))
-                    case .workspaceFocused: .success(.bool(focus.workspace == w))
+                    case .workspaceFocused: .success(.bool(globalFocus.workspace == w))
                     case .workspaceRootContainerLayout: .success(.string(toLayoutString(tc: w.rootTilingContainer)))
                 }
             case (.monitor(let m), .monitor(let f)):

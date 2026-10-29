@@ -43,9 +43,7 @@ final class MacApp: AbstractApp {
         self.thread = thread
     }
 
-    @MainActor
-    @discardableResult
-    static func getOrRegister(_ nsApp: NSRunningApplication) async throws -> MacApp? {
+    @MainActor @discardableResult static func getOrRegister(_ nsApp: NSRunningApplication) async throws -> MacApp? {
         // Don't perceive any of the lock screen windows as real windows
         // Otherwise, false positive ax notifications might trigger that lead to gcWindows
         if nsApp.bundleIdentifier == lockScreenAppBundleId { return nil }
@@ -56,7 +54,7 @@ final class MacApp: AbstractApp {
         if let existing = allAppsMap[pid] { return existing }
         try checkCancellation()
         if let wip = wipPids[pid] {
-            try await wip.await()
+            try await wip.await(.cancellable)
             return allAppsMap[pid]
         }
         let wip = AwaitableOneTimeBroadcastLatch()
@@ -95,7 +93,7 @@ final class MacApp: AbstractApp {
         thread.name = "AxAppThread \(nsApp.idForDebug)"
         thread.start()
 
-        try await wip.await()
+        try await wip.await(.cancellable)
         return allAppsMap[pid]
     }
 
@@ -133,7 +131,7 @@ final class MacApp: AbstractApp {
         // Performance optimization. If possible avoid doing AX requests
         // (important for apps which are slow at responding even such basic AX requests. E.g. Godot)
         // Beware of the macOS bug: https://github.com/nikitabobko/AeroSpace/issues/101
-        if (!NSScreen.screensHaveSeparateSpaces || monitorInfos.count == 1) &&
+        if (!NSScreen.screensHaveSeparateSpaces || globalUnsortedMonitorInfos.count == 1) &&
             (lastNativeFocusedWindowId == windowId || windowsCount == 1)
         {
             nsApp.activate(options: .activateIgnoringOtherApps)
@@ -256,42 +254,41 @@ final class MacApp: AbstractApp {
         }
     }
 
-    @MainActor
-    static func refreshAllAndGetAliveWindowIds(frontmostAppBundleId: String?) async throws -> [MacApp: [UInt32]] {
-        for (_, app) in MacApp.allAppsMap { // gc dead apps
+    @MainActor static func refreshAllAndGetAliveWindowIds(frontmostAppBundleId: String?) async throws -> [MacApp: [UInt32]] {
+        for app in MacApp.allAppsMap.values { // gc dead apps
             try checkCancellation()
             if app.nsApp.isTerminated {
                 await app.destroy()
             }
         }
-        return try await withThrowingTaskGroup(of: (pid_t, [UInt32]).self, returning: [MacApp: [UInt32]].self) { group in
-            func refreshTheApp(_ nsApp: NSRunningApplication) {
+        return try await withThrowingTaskGroup(
+            of: (MainActorRef<MacApp>, [UInt32]).self,
+            returning: [MacApp: [UInt32]].self,
+        ) { group in
+            @MainActor func refreshTheApp(_ app: MacApp) {
                 group.addTask { @Sendable @MainActor in
-                    guard let app = try await MacApp.getOrRegister(nsApp) else { return (nsApp.processIdentifier, []) }
-                    return (nsApp.processIdentifier, try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId))
+                    return (MainActorRef.init(app), try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId))
                 }
             }
             // Register new apps
             for nsApp in NSWorkspace.shared.runningApplications {
                 try checkCancellation()
-                if nsApp.activationPolicy == .regular {
-                    refreshTheApp(nsApp)
+                if nsApp.activationPolicy == .regular, let app = try await MacApp.getOrRegister(nsApp) {
+                    refreshTheApp(app)
                 }
             }
-            for (_, app) in MacApp.allAppsMap {
+            for app in MacApp.allAppsMap.values {
                 try checkCancellation()
                 // "About this Mac" window, TouchID, and a lot of other utility windows
                 // We don't monitor them actively as we do for regular apps, but if a window of one of those utility
                 // apps got focused it will end up in allAppsMap
                 if app.nsApp.activationPolicy != .regular {
-                    refreshTheApp(app.nsApp)
+                    refreshTheApp(app)
                 }
             }
             var result: [MacApp: [UInt32]] = [:]
-            for try await (pid, windowIds) in group {
-                if let app = MacApp.allAppsMap[pid] {
-                    result[app] = windowIds
-                }
+            for try await (macAppRef, windowIds) in group {
+                result[macAppRef.value] = windowIds
             }
             return result
         }
@@ -303,13 +300,12 @@ final class MacApp: AbstractApp {
             return []
         }
         guard let thread else { return [] }
-        let (alive, dead) = try await thread.runInLoop(.cancellable) { [nsApp, windows, axApp] (job) -> ([UInt32], [UInt32]) in
+        let alive = try await thread.runInLoop(.cancellable) { [nsApp, windows, axApp] (job) -> [UInt32] in
             var alive: [UInt32: AxWindow] = windows.threadGuarded
-            var dead = [UInt32: AxWindow]()
             // Second line of defence against lock screen. See the first line of defence: closedWindowsCache
             // Second and third lines of defence are technically needed only to avoid potential flickering
             if frontmostAppBundleId != lockScreenAppBundleId {
-                (alive, dead) = try alive.partition {
+                alive = try alive.filter {
                     try job.checkCancellation()
                     return $0.value.ax.containingWindowId() != nil
                 }
@@ -321,11 +317,14 @@ final class MacApp: AbstractApp {
             }
 
             windows.threadGuarded = alive
-            return (Array(alive.keys), Array(dead.keys))
+            return Array(alive.keys)
         }
         windowsCount = alive.count
-        for windowId in dead {
-            setFrameJobs.removeValue(forKey: windowId)?.cancel()
+        let aliveSet = alive.toSet()
+        for windowId in setFrameJobs.keys {
+            if !aliveSet.contains(windowId) {
+                setFrameJobs.removeValue(forKey: windowId)?.cancel()
+            }
         }
         return alive
     }
@@ -433,4 +432,9 @@ private func disableAnimations<T>(app: AXUIElement, _ job: RunLoopJob, _ body: (
     }
     try job.checkCancellation()
     return try body()
+}
+
+final class MainActorRef<T>: Sendable {
+    @MainActor var value: T
+    @MainActor public init(_ value: T) { self.value = value }
 }
