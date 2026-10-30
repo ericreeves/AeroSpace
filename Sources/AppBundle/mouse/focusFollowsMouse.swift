@@ -1,4 +1,5 @@
 import AppKit
+import Common
 
 @MainActor private var focusFollowsMouseMonitor: Any? = nil
 @MainActor private var focusFollowsTask: Task<(), any Error>? = nil
@@ -30,7 +31,7 @@ import AppKit
             try checkCancellation()
             let workspace = location.monitorApproximation.visibleWorkspace
             var window: Window? = nil
-            for child in workspace.floatingWindowsContainer.mruChildren {
+            for child in workspace.floatingWindowsContainer._mruChildren {
                 try checkCancellation()
                 guard let child = child as? Window else { continue }
                 guard let rect = try await child.getAxRect(.cancellable) else { continue }

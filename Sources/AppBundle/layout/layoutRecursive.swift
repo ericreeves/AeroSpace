@@ -115,11 +115,13 @@ extension TilingContainer {
         var point = point
         var virtualPoint = virtual.topLeftCorner
 
-        guard let delta = ((orientation == .h ? width : height) - CGFloat(children.sumOfDouble { $0.getWeight(orientation) }))
-            .div(children.count) else { return }
+        let inhabitedChildren = inhabitedChildren
 
-        let lastIndex = children.indices.last
-        for (i, child) in children.enumerated() {
+        guard let delta = ((orientation == .h ? width : height) - CGFloat(inhabitedChildren.sumOfDouble { $0.getWeight(orientation) }))
+            .div(inhabitedChildren.count) else { return }
+
+        let lastIndex = inhabitedChildren.indices.last
+        for (i, child) in inhabitedChildren.enumerated() {
             child.setWeight(orientation, child.getWeight(orientation) + delta)
             let rawGap = context.resolvedGaps.inner.get(orientation).toDouble()
             // Gaps. Consider 4 cases:
@@ -147,16 +149,18 @@ extension TilingContainer {
 
     @MainActor
     fileprivate func layoutAccordion(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
-        guard let mruIndex: Int = mostRecentChild?.ownIndex else { return }
-        for (index, child) in children.enumerated() {
+        let inhabitedChildren = inhabitedChildren
+
+        guard let mruIndex: Int = mostRecentInhabitedChild?.ownIndex(in: .inhabitedOnly) else { return }
+        for (index, child) in inhabitedChildren.enumerated() {
             let padding = CGFloat(config.accordionPadding)
             let (lPadding, rPadding): (CGFloat, CGFloat) = switch index {
-                case 0 where children.count == 1: (0, 0)
-                case 0:                           (0, padding)
-                case children.indices.last:       (padding, 0)
-                case mruIndex - 1:                (0, 2 * padding)
-                case mruIndex + 1:                (2 * padding, 0)
-                default:                          (padding, padding)
+                case 0 where inhabitedChildren.count == 1: (0, 0)
+                case 0:                                (0, padding)
+                case inhabitedChildren.indices.last:   (padding, 0)
+                case mruIndex - 1:                     (0, 2 * padding)
+                case mruIndex + 1:                     (2 * padding, 0)
+                default:                               (padding, padding)
             }
             switch orientation {
                 case .h:
