@@ -1,5 +1,4 @@
 // swift-tools-version: 6.2
-// The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import CompilerPluginSupport
 import PackageDescription
@@ -13,7 +12,7 @@ let package = Package(
     name: "AeroSpacePackage",
     // Runtime support for parameterized protocol types is only available in macOS 13.0.0 or newer
     // And it specifies deploymentTarget for CLI
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v13)], // #MACOS_MIN_DEPLOYMENT_TARGET
     // Products define the executables and libraries a package produces, making them visible to other packages.
     products: [
         .executable(name: "aerospace", targets: ["Cli"]),
@@ -25,7 +24,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/InerziaSoft/ISSoundAdditions.git", exact: "2.0.1"),
         .package(url: "https://github.com/dduan/TOMLDecoder", exact: "0.4.5"),
-        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.3.0"),
+        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.6.0", traits: ["UnstableHashedContainers"]),
         .package(url: "https://github.com/soffes/HotKey.git", exact: "0.2.1"),
         .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
@@ -48,7 +47,7 @@ let package = Package(
         .target(
             name: "Common",
             dependencies: [
-                .product(name: "Collections", package: "swift-collections"),
+                .product(name: "OrderedCollections", package: "swift-collections"),
                 .target(name: "Macros"),
             ],
             swiftSettings: swiftSettings,
@@ -56,7 +55,8 @@ let package = Package(
         .target(
             name: "AppBundle",
             dependencies: [
-                .product(name: "Collections", package: "swift-collections"),
+                .product(name: "BasicContainers", package: "swift-collections"),
+                .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "HotKey", package: "HotKey"),
                 .product(name: "ISSoundAdditions", package: "ISSoundAdditions"),
                 .product(name: "TOMLDecoder", package: "TOMLDecoder"),
